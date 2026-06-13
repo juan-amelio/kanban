@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, Fragment } from "react";
-import { Plus, Pencil, Trash2, X, Save, AlertCircle, Check, Eye, Copy, Wand2 } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Save, AlertCircle, Check, Eye, Copy, Wand2, Moon, Sun } from "lucide-react";
 
 const COLS = [
   { id: "backlog", title: "Backlog" },
@@ -30,6 +30,22 @@ const PRIORITIES = [
 const PRIO_ORDER = { P0: 0, P1: 1, P2: 2, P3: 3, "": 4, null: 4, undefined: 4 };
 
 const POINTS = [1, 2, 3, 5, 8, 13];
+
+// Colores de tarjeta. "white" es el default; cada color tiene una variante
+// para tema claro y otra para oscuro.
+const CARD_COLORS = [
+  { id: "white", label: "Blanco", light: "#ffffff", dark: "#404040" },
+  { id: "red", label: "Rojo", light: "#FDECEC", dark: "#4a2c2c" },
+  { id: "orange", label: "Naranja", light: "#FBF0DD", dark: "#4a3a23" },
+  { id: "yellow", label: "Amarillo", light: "#FBF7DC", dark: "#46431f" },
+  { id: "green", label: "Verde", light: "#EBF4DF", dark: "#2e3f23" },
+  { id: "blue", label: "Azul", light: "#E7F1FB", dark: "#243949" },
+  { id: "purple", label: "Violeta", light: "#EFEDFE", dark: "#322d4a" },
+  { id: "pink", label: "Rosa", light: "#FBEAF1", dark: "#46293a" },
+];
+function cardColor(id) {
+  return CARD_COLORS.find((c) => c.id === id) || CARD_COLORS[0];
+}
 
 const STORAGE_KEY = "kanban_cards_v2";
 const NEXT_KEY = "kanban_next_v2";
@@ -99,6 +115,18 @@ export default function KanbanBoard() {
   const [confirm, setConfirm] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [dark, setDark] = useState(() =>
+    typeof document !== "undefined" && document.documentElement.classList.contains("dark")
+  );
+
+  const toggleDark = () => {
+    setDark((d) => {
+      const next = !d;
+      document.documentElement.classList.toggle("dark", next);
+      try { localStorage.setItem("kanban_theme", next ? "dark" : "light"); } catch (e) { /* noop */ }
+      return next;
+    });
+  };
 
   // Carga inicial desde localStorage (síncrona). Si no hay nada o el JSON
   // está corrupto, se cae al SEED.
@@ -224,19 +252,19 @@ export default function KanbanBoard() {
   };
 
   const openCreate = (colId) =>
-    setModal({ mode: "create", col: colId, title: "", desc: "", tags: [], points: null, priority: null, prompt: "" });
+    setModal({ mode: "create", col: colId, title: "", desc: "", tags: [], points: null, priority: null, prompt: "", color: "white" });
 
   const openEdit = (card) =>
-    setModal({ mode: "edit", id: card.id, col: card.col, title: card.title, desc: card.desc || "", tags: [...card.tags], points: card.points || null, priority: card.priority || null, prompt: card.prompt || "" });
+    setModal({ mode: "edit", id: card.id, col: card.col, title: card.title, desc: card.desc || "", tags: [...card.tags], points: card.points || null, priority: card.priority || null, prompt: card.prompt || "", color: card.color || "white" });
 
   const saveModal = () => {
     const title = modal.title.trim();
     if (!title) return;
     if (modal.mode === "edit") {
-      setCards((prev) => prev.map((c) => (c.id === modal.id ? { ...c, title, desc: modal.desc, tags: modal.tags, points: modal.points, priority: modal.priority, prompt: modal.prompt } : c)));
+      setCards((prev) => prev.map((c) => (c.id === modal.id ? { ...c, title, desc: modal.desc, tags: modal.tags, points: modal.points, priority: modal.priority, prompt: modal.prompt, color: modal.color } : c)));
     } else {
       const maxOrder = cards.filter((c) => c.col === modal.col).reduce((m, c) => Math.max(m, c.order ?? 0), -1);
-      const newCard = { id: nextId, col: modal.col, order: maxOrder + 1, title, desc: modal.desc, tags: modal.tags, points: modal.points, priority: modal.priority, prompt: modal.prompt };
+      const newCard = { id: nextId, col: modal.col, order: maxOrder + 1, title, desc: modal.desc, tags: modal.tags, points: modal.points, priority: modal.priority, prompt: modal.prompt, color: modal.color };
       setCards((prev) => [...prev, newCard]);
       setNextId((n) => n + 1);
     }
@@ -289,13 +317,13 @@ export default function KanbanBoard() {
   const Line = () => <div className="h-0.5 bg-blue-400 rounded-full mx-1" />;
 
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900 font-sans p-4">
+    <div className="min-h-screen bg-neutral-50 text-neutral-900 dark:bg-neutral-900 dark:text-neutral-100 font-sans p-4 transition-colors">
       {/* Toolbar */}
       <div className="flex items-center gap-2 flex-wrap mb-1.5">
-        <span className="text-sm text-neutral-500 mr-1">Tipo:</span>
+        <span className="text-sm text-neutral-500 dark:text-neutral-400 mr-1">Tipo:</span>
         <button
           onClick={() => setTagFilter("all")}
-          className={`text-xs font-medium px-3 py-1 rounded-full border transition ${tagFilter === "all" ? "border-neutral-400 bg-neutral-100 text-neutral-900" : "border-neutral-200 bg-neutral-50 text-neutral-500"}`}
+          className={`text-xs font-medium px-3 py-1 rounded-full border transition ${tagFilter === "all" ? "border-neutral-400 bg-neutral-100 text-neutral-900 dark:border-neutral-500 dark:bg-neutral-700 dark:text-neutral-100" : "border-neutral-200 bg-neutral-50 text-neutral-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400"}`}
         >
           Todas
         </button>
@@ -313,12 +341,20 @@ export default function KanbanBoard() {
           {saveState === "saved" && <><Save size={13} /> guardado</>}
           {saveState === "error" && <><AlertCircle size={13} /> error al guardar</>}
         </span>
+        <button
+          onClick={toggleDark}
+          className="p-1.5 rounded-md border border-neutral-200 bg-neutral-50 text-neutral-500 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 transition"
+          aria-label={dark ? "Modo claro" : "Modo oscuro"}
+          title={dark ? "Modo claro" : "Modo oscuro"}
+        >
+          {dark ? <Sun size={14} /> : <Moon size={14} />}
+        </button>
       </div>
       <div className="flex items-center gap-2 flex-wrap mb-4">
-        <span className="text-sm text-neutral-500 mr-1">Prioridad:</span>
+        <span className="text-sm text-neutral-500 dark:text-neutral-400 mr-1">Prioridad:</span>
         <button
           onClick={() => setPrioFilter("all")}
-          className={`text-xs font-medium px-3 py-1 rounded-full border transition ${prioFilter === "all" ? "border-neutral-400 bg-neutral-100 text-neutral-900" : "border-neutral-200 bg-neutral-50 text-neutral-500"}`}
+          className={`text-xs font-medium px-3 py-1 rounded-full border transition ${prioFilter === "all" ? "border-neutral-400 bg-neutral-100 text-neutral-900 dark:border-neutral-500 dark:bg-neutral-700 dark:text-neutral-100" : "border-neutral-200 bg-neutral-50 text-neutral-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400"}`}
         >
           Todas
         </button>
@@ -342,19 +378,19 @@ export default function KanbanBoard() {
           return (
             <div
               key={col.id}
-              className="flex-shrink-0 w-60 bg-neutral-100 rounded-xl border border-neutral-200 flex flex-col"
+              className="flex-shrink-0 w-60 bg-neutral-100 dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 flex flex-col"
               style={{ maxHeight: "80vh" }}
             >
-              <div className="px-3.5 py-3 flex items-center justify-between border-b border-neutral-200 flex-shrink-0">
+              <div className="px-3.5 py-3 flex items-center justify-between border-b border-neutral-200 dark:border-neutral-700 flex-shrink-0">
                 <span className="text-sm font-medium">{col.title}</span>
-                <span className="text-xs bg-white border border-neutral-200 rounded-full px-2 py-0.5 text-neutral-500">
+                <span className="text-xs bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 rounded-full px-2 py-0.5 text-neutral-500 dark:text-neutral-300">
                   {countInCol(col.id)}
                 </span>
               </div>
               <div
                 onDragOver={(e) => handleAreaDragOver(e, col.id)}
                 onDrop={(e) => handleDrop(e, col.id)}
-                className={`p-2.5 flex flex-col gap-2 overflow-y-auto flex-1 transition ${isOver ? "bg-blue-50" : ""}`}
+                className={`p-2.5 flex flex-col gap-2 overflow-y-auto flex-1 transition ${isOver ? "bg-blue-50 dark:bg-blue-950/40" : ""}`}
                 style={{ minHeight: 60 }}
               >
                 {vc.length === 0 ? (
@@ -364,6 +400,7 @@ export default function KanbanBoard() {
                     const p = prioStyle(c.priority);
                     const showLine = draggingId != null && isOver && dropTarget.beforeId === c.id;
                     const hasPrompt = c.prompt && c.prompt.trim();
+                    const cc = cardColor(c.color);
                     return (
                       <Fragment key={c.id}>
                         {showLine && <Line />}
@@ -372,7 +409,8 @@ export default function KanbanBoard() {
                           onDragStart={() => setDraggingId(c.id)}
                           onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
                           onDragOver={(e) => handleCardDragOver(e, c, vc, i)}
-                          className={`bg-white border border-neutral-200 rounded-lg p-3 cursor-grab hover:border-neutral-300 transition select-none ${draggingId === c.id ? "opacity-40" : ""}`}
+                          className={`border border-neutral-200 dark:border-neutral-600 rounded-lg p-3 cursor-grab hover:border-neutral-300 dark:hover:border-neutral-500 transition select-none ${draggingId === c.id ? "opacity-40" : ""}`}
+                          style={{ backgroundColor: dark ? cc.dark : cc.light }}
                         >
                           <div className="flex items-start justify-between gap-2 mb-1.5">
                             {p ? (
@@ -380,13 +418,13 @@ export default function KanbanBoard() {
                                 {p.label}
                               </span>
                             ) : <span />}
-                            <button onClick={() => openView(c)} className="p-1 -mt-0.5 -mr-1 rounded text-neutral-400 hover:text-neutral-900 transition flex-shrink-0" aria-label="Ver detalle">
+                            <button onClick={() => openView(c)} className="p-1 -mt-0.5 -mr-1 rounded text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition flex-shrink-0" aria-label="Ver detalle">
                               <Eye size={15} />
                             </button>
                           </div>
                           <div className="text-sm leading-snug mb-1.5">{c.title}</div>
                           {c.desc && (
-                            <div className="text-xs text-neutral-500 leading-snug mb-2 line-clamp-2">{c.desc}</div>
+                            <div className="text-xs text-neutral-500 dark:text-neutral-400 leading-snug mb-2 line-clamp-2">{c.desc}</div>
                           )}
                           <div className="flex items-center justify-between gap-1.5">
                             <div className="flex gap-1 flex-wrap flex-1 min-w-0 items-center">
@@ -403,12 +441,12 @@ export default function KanbanBoard() {
                               )}
                             </div>
                             {c.points != null && (
-                              <span className="text-[11px] font-medium bg-neutral-100 border border-neutral-200 rounded-md px-1.5 py-0.5 text-neutral-500 whitespace-nowrap flex-shrink-0">
+                              <span className="text-[11px] font-medium bg-neutral-100 dark:bg-neutral-600 border border-neutral-200 dark:border-neutral-500 rounded-md px-1.5 py-0.5 text-neutral-500 dark:text-neutral-300 whitespace-nowrap flex-shrink-0">
                                 {c.points} pts
                               </span>
                             )}
                             <div className="flex gap-0.5 flex-shrink-0">
-                              <button onClick={() => openEdit(c)} className="p-1 rounded text-neutral-400 hover:text-neutral-900 transition" aria-label="Editar">
+                              <button onClick={() => openEdit(c)} className="p-1 rounded text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition" aria-label="Editar">
                                 <Pencil size={14} />
                               </button>
                               <button onClick={() => setConfirm({ id: c.id })} className="p-1 rounded text-neutral-400 hover:text-red-600 transition" aria-label="Eliminar">
@@ -425,7 +463,7 @@ export default function KanbanBoard() {
               </div>
               <button
                 onClick={() => openCreate(col.id)}
-                className="m-2.5 py-1.5 rounded-md border border-dashed border-neutral-200 text-neutral-400 text-xs flex items-center justify-center gap-1 hover:bg-neutral-50 hover:text-neutral-600 transition"
+                className="m-2.5 py-1.5 rounded-md border border-dashed border-neutral-200 dark:border-neutral-600 text-neutral-400 text-xs flex items-center justify-center gap-1 hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:text-neutral-600 dark:hover:text-neutral-300 transition"
               >
                 <Plus size={14} /> Agregar tarea
               </button>
@@ -440,7 +478,7 @@ export default function KanbanBoard() {
         const col = COLS.find((c) => c.id === viewing.col);
         return (
           <div className="fixed inset-0 bg-black/35 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setViewing(null); }}>
-            <div className="bg-white rounded-xl border border-neutral-200 p-8 w-[70vw] h-[70vh] flex flex-col gap-5 overflow-hidden">
+            <div className="bg-white dark:bg-neutral-800 dark:text-neutral-100 rounded-xl border border-neutral-200 dark:border-neutral-700 p-8 w-[70vw] h-[70vh] flex flex-col gap-5 overflow-hidden">
               <div className="flex items-start justify-between gap-4 flex-shrink-0">
                 <div className="flex flex-col gap-2 flex-1 min-w-0">
                   {p && (
@@ -450,14 +488,14 @@ export default function KanbanBoard() {
                   )}
                   <h3 className="text-2xl font-medium leading-snug">{viewing.title}</h3>
                 </div>
-                <button onClick={() => setViewing(null)} className="text-neutral-400 hover:text-neutral-900 flex-shrink-0 mt-1"><X size={22} /></button>
+                <button onClick={() => setViewing(null)} className="text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 flex-shrink-0 mt-1"><X size={22} /></button>
               </div>
 
-              <div className="flex-1 overflow-y-auto border-t border-neutral-100 pt-5">
+              <div className="flex-1 overflow-y-auto border-t border-neutral-100 dark:border-neutral-700 pt-5">
                 {viewing.desc ? (
                   <>
                     <p className="text-xs text-neutral-400 mb-2">Descripción</p>
-                    <p className="text-base text-neutral-700 leading-relaxed whitespace-pre-wrap">{viewing.desc}</p>
+                    <p className="text-base text-neutral-700 dark:text-neutral-300 leading-relaxed whitespace-pre-wrap">{viewing.desc}</p>
                   </>
                 ) : (
                   <p className="text-base text-neutral-400 italic">Sin descripción.</p>
@@ -467,27 +505,27 @@ export default function KanbanBoard() {
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs text-neutral-400 flex items-center gap-1.5"><Wand2 size={13} /> Prompt para Claude Code</p>
                     {viewing.prompt && viewing.prompt.trim() && (
-                      <button onClick={copyPrompt} className="text-xs flex items-center gap-1 border border-neutral-200 rounded-md px-2 py-1 text-neutral-500 hover:bg-neutral-50 transition">
+                      <button onClick={copyPrompt} className="text-xs flex items-center gap-1 border border-neutral-200 dark:border-neutral-600 rounded-md px-2 py-1 text-neutral-500 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition">
                         {copied ? <><Check size={13} /> copiado</> : <><Copy size={13} /> copiar</>}
                       </button>
                     )}
                   </div>
                   {viewing.prompt && viewing.prompt.trim() ? (
-                    <pre className="text-[13px] text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg p-4 whitespace-pre-wrap font-mono leading-relaxed">{viewing.prompt}</pre>
+                    <pre className="text-[13px] text-neutral-700 dark:text-neutral-300 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 whitespace-pre-wrap font-mono leading-relaxed">{viewing.prompt}</pre>
                   ) : (
                     <p className="text-sm text-neutral-400 italic">Se completa solo al pasar la tarjeta a In Progress (o escribilo desde el botón de editar).</p>
                   )}
                 </div>
               </div>
 
-              <div className="border-t border-neutral-100 pt-4 flex flex-wrap items-center gap-x-8 gap-y-3 flex-shrink-0">
+              <div className="border-t border-neutral-100 dark:border-neutral-700 pt-4 flex flex-wrap items-center gap-x-8 gap-y-3 flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-neutral-400">Columna</span>
-                  <span className="text-sm font-medium text-neutral-700">{col?.title}</span>
+                  <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">{col?.title}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-neutral-400">Esfuerzo</span>
-                  <span className="text-sm font-medium bg-neutral-100 border border-neutral-200 rounded-md px-2 py-0.5 text-neutral-600">
+                  <span className="text-sm font-medium bg-neutral-100 dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 rounded-md px-2 py-0.5 text-neutral-600 dark:text-neutral-300">
                     {viewing.points != null ? `${viewing.points} pts` : "—"}
                   </span>
                 </div>
@@ -502,7 +540,7 @@ export default function KanbanBoard() {
                     </div>
                   </div>
                 )}
-                <button onClick={() => { setViewing(null); openEdit(viewing); }} className="ml-auto border border-neutral-200 rounded-md px-4 py-2 text-sm text-neutral-500 hover:bg-neutral-50 flex items-center gap-1.5">
+                <button onClick={() => { setViewing(null); openEdit(viewing); }} className="ml-auto border border-neutral-200 dark:border-neutral-600 rounded-md px-4 py-2 text-sm text-neutral-500 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700 flex items-center gap-1.5">
                   <Pencil size={14} /> Editar
                 </button>
               </div>
@@ -514,33 +552,33 @@ export default function KanbanBoard() {
       {/* Modal crear/editar */}
       {modal && (
         <div className="fixed inset-0 bg-black/35 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setModal(null); }}>
-          <div className="bg-white rounded-xl border border-neutral-200 p-5 w-80 flex flex-col gap-3 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-neutral-800 dark:text-neutral-100 rounded-xl border border-neutral-200 dark:border-neutral-700 p-5 w-80 flex flex-col gap-3 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-medium">{modal.mode === "edit" ? "Editar tarea" : "Nueva tarea"}</h3>
-              <button onClick={() => setModal(null)} className="text-neutral-400 hover:text-neutral-900"><X size={18} /></button>
+              <button onClick={() => setModal(null)} className="text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"><X size={18} /></button>
             </div>
             <div>
-              <label className="text-xs text-neutral-500 block mb-1">Título</label>
+              <label className="text-xs text-neutral-500 dark:text-neutral-400 block mb-1">Título</label>
               <input
                 autoFocus
                 value={modal.title}
                 onChange={(e) => setModal({ ...modal, title: e.target.value })}
                 placeholder="¿Qué hay que hacer?"
-                className="w-full text-sm rounded-md border border-neutral-200 px-2.5 py-1.5 bg-neutral-50 focus:outline-none focus:border-neutral-400"
+                className="w-full text-sm rounded-md border border-neutral-200 dark:border-neutral-600 px-2.5 py-1.5 bg-neutral-50 dark:bg-neutral-900 focus:outline-none focus:border-neutral-400 dark:focus:border-neutral-400"
               />
             </div>
             <div>
-              <label className="text-xs text-neutral-500 block mb-1">Descripción</label>
+              <label className="text-xs text-neutral-500 dark:text-neutral-400 block mb-1">Descripción</label>
               <textarea
                 value={modal.desc}
                 onChange={(e) => setModal({ ...modal, desc: e.target.value })}
                 placeholder="Detalles opcionales..."
-                className="w-full text-sm rounded-md border border-neutral-200 px-2.5 py-1.5 bg-neutral-50 focus:outline-none focus:border-neutral-400 resize-y"
+                className="w-full text-sm rounded-md border border-neutral-200 dark:border-neutral-600 px-2.5 py-1.5 bg-neutral-50 dark:bg-neutral-900 focus:outline-none focus:border-neutral-400 dark:focus:border-neutral-400 resize-y"
                 style={{ minHeight: 70, lineHeight: 1.5 }}
               />
             </div>
             <div>
-              <label className="text-xs text-neutral-500 block mb-1">Prioridad</label>
+              <label className="text-xs text-neutral-500 dark:text-neutral-400 block mb-1">Prioridad</label>
               <div className="flex gap-1.5 flex-wrap">
                 {PRIORITIES.map((p) => {
                   const sel = modal.priority === p.id;
@@ -558,7 +596,7 @@ export default function KanbanBoard() {
               </div>
             </div>
             <div>
-              <label className="text-xs text-neutral-500 block mb-1">Etiquetas</label>
+              <label className="text-xs text-neutral-500 dark:text-neutral-400 block mb-1">Etiquetas</label>
               <div className="flex gap-1.5 flex-wrap">
                 {TAGS.map((t) => {
                   const sel = modal.tags.includes(t.id);
@@ -576,7 +614,27 @@ export default function KanbanBoard() {
               </div>
             </div>
             <div>
-              <label className="text-xs text-neutral-500 block mb-1">Puntos de esfuerzo</label>
+              <label className="text-xs text-neutral-500 dark:text-neutral-400 block mb-1">Color</label>
+              <div className="flex gap-1.5 flex-wrap">
+                {CARD_COLORS.map((c) => {
+                  const sel = (modal.color || "white") === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setModal({ ...modal, color: c.id })}
+                      title={c.label}
+                      aria-label={c.label}
+                      className="w-7 h-7 rounded-full border-2 transition flex items-center justify-center"
+                      style={{ background: dark ? c.dark : c.light, borderColor: sel ? "#3b82f6" : (dark ? "#525252" : "#d4d4d4") }}
+                    >
+                      {sel && <Check size={13} style={{ color: dark ? "#fff" : "#3b82f6" }} />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-neutral-500 dark:text-neutral-400 block mb-1">Puntos de esfuerzo</label>
               <div className="flex gap-1.5 flex-wrap">
                 {POINTS.map((p) => {
                   const sel = modal.points === p;
@@ -584,7 +642,7 @@ export default function KanbanBoard() {
                     <button
                       key={p}
                       onClick={() => setModal({ ...modal, points: sel ? null : p })}
-                      className={`text-xs font-medium px-2.5 py-1 rounded-md border transition ${sel ? "bg-blue-50 border-blue-300 text-blue-700" : "bg-neutral-50 border-neutral-200 text-neutral-500"}`}
+                      className={`text-xs font-medium px-2.5 py-1 rounded-md border transition ${sel ? "bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-950 dark:border-blue-700 dark:text-blue-300" : "bg-neutral-50 border-neutral-200 text-neutral-500 dark:bg-neutral-900 dark:border-neutral-600 dark:text-neutral-400"}`}
                     >
                       {p}
                     </button>
@@ -594,10 +652,10 @@ export default function KanbanBoard() {
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs text-neutral-500">Prompt para Claude Code</label>
+                <label className="text-xs text-neutral-500 dark:text-neutral-400">Prompt para Claude Code</label>
                 <button
                   onClick={() => setModal({ ...modal, prompt: buildPrompt(modal) })}
-                  className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1"
                 >
                   <Wand2 size={12} /> Generar
                 </button>
@@ -606,13 +664,13 @@ export default function KanbanBoard() {
                 value={modal.prompt}
                 onChange={(e) => setModal({ ...modal, prompt: e.target.value })}
                 placeholder="Se completa solo al pasar la tarjeta a In Progress..."
-                className="w-full text-xs rounded-md border border-neutral-200 px-2.5 py-1.5 bg-neutral-50 focus:outline-none focus:border-neutral-400 resize-y font-mono"
+                className="w-full text-xs rounded-md border border-neutral-200 dark:border-neutral-600 px-2.5 py-1.5 bg-neutral-50 dark:bg-neutral-900 focus:outline-none focus:border-neutral-400 dark:focus:border-neutral-400 resize-y font-mono"
                 style={{ minHeight: 80, lineHeight: 1.5 }}
               />
             </div>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setModal(null)} className="border border-neutral-200 rounded-md px-3.5 py-1.5 text-sm text-neutral-500 hover:bg-neutral-50">Cancelar</button>
-              <button onClick={saveModal} className="bg-blue-50 border border-blue-300 text-blue-700 rounded-md px-3.5 py-1.5 text-sm font-medium hover:bg-blue-100 flex items-center gap-1">
+              <button onClick={() => setModal(null)} className="border border-neutral-200 dark:border-neutral-600 rounded-md px-3.5 py-1.5 text-sm text-neutral-500 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700">Cancelar</button>
+              <button onClick={saveModal} className="bg-blue-50 border border-blue-300 text-blue-700 dark:bg-blue-950 dark:border-blue-700 dark:text-blue-300 rounded-md px-3.5 py-1.5 text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900 flex items-center gap-1">
                 <Check size={14} /> {modal.mode === "edit" ? "Guardar" : "Crear"}
               </button>
             </div>
@@ -623,14 +681,14 @@ export default function KanbanBoard() {
       {/* Confirmación de borrado */}
       {confirm && (
         <div className="fixed inset-0 bg-black/35 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setConfirm(null); }}>
-          <div className="bg-white rounded-xl border border-neutral-200 p-5 w-72 flex flex-col gap-3.5">
+          <div className="bg-white dark:bg-neutral-800 dark:text-neutral-100 rounded-xl border border-neutral-200 dark:border-neutral-700 p-5 w-72 flex flex-col gap-3.5">
             <h3 className="text-base font-medium">Eliminar tarea</h3>
-            <p className="text-sm text-neutral-500 leading-relaxed">
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
               ¿Seguro que querés eliminar <strong>"{cards.find((c) => c.id === confirm.id)?.title}"</strong>? Esta acción no se puede deshacer.
             </p>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setConfirm(null)} className="border border-neutral-200 rounded-md px-3.5 py-1.5 text-sm text-neutral-500 hover:bg-neutral-50">Cancelar</button>
-              <button onClick={() => deleteCard(confirm.id)} className="bg-red-50 border border-red-200 text-red-700 rounded-md px-3.5 py-1.5 text-sm font-medium hover:bg-red-100">Eliminar</button>
+              <button onClick={() => setConfirm(null)} className="border border-neutral-200 dark:border-neutral-600 rounded-md px-3.5 py-1.5 text-sm text-neutral-500 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700">Cancelar</button>
+              <button onClick={() => deleteCard(confirm.id)} className="bg-red-50 border border-red-200 text-red-700 dark:bg-red-950 dark:border-red-800 dark:text-red-300 rounded-md px-3.5 py-1.5 text-sm font-medium hover:bg-red-100 dark:hover:bg-red-900">Eliminar</button>
             </div>
           </div>
         </div>
